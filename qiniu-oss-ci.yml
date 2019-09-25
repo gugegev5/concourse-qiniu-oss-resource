@@ -1,0 +1,69 @@
+resource_types:
+- name: qiniu-oss-resource
+  type: docker-image
+  source:
+    repository: gugege/concourse-qiniu-oss-resource
+    tag: 0.1
+
+resources:
+- name: qiniu-oss
+  type: qiniu-oss-resource
+  source:
+    qiniu_accesskey: ((qiniu_accesskey))
+    qiniu_secretkey: ((qiniu_secretkey))
+    qiniu_accountname: ((qiniu_accountname))
+#    git_private_key: ((git_private_key))
+
+jobs:
+- name: test put
+  public: true
+  plan:
+  - task: upload task
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: gugege/node_12_4_cnpm_rsync
+          tag: '1.0'
+      run:
+        path: /bin/bash
+        args:
+        - -exc
+        - |
+          mkdir -p upload_src/test
+          echo "testfile1" > ./upload_src/test/testfile1
+          echo "testfile2" > ./upload_src/test/testfile2
+          echo "testfile3" > ./upload_src/test/testfile3
+          pwd
+          ls -alhR .
+      outputs:
+      - name: upload_src
+  - put: qiniu-oss
+    params:
+      cmds:
+      - "qshell qupload2 --src-dir=upload_src/ --bucket=front --thread-count=10 --overwrite=true --check-exists=true --check-hash=true --check-size=true --overwrite-list qiniu.overwrite.txt"
+
+- name: test get
+  public: true
+  plan:
+  - get: qiniu-oss
+    params:
+      git_url: https://github.com/gugegev5/concourse-qiniu-oss-resource.git
+  - task: download task
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: gugege/node_12_4_cnpm_rsync
+          tag: '1.0'
+      inputs:
+      - name: qiniu-oss
+      run:
+        path: /bin/bash
+        args:
+        - -exc
+        - |
+          pwd
+          ls -alhR .
